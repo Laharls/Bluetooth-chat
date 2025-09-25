@@ -13,8 +13,12 @@ class BluetoothChatSession(
     private val socket: BluetoothSocket,
     private val onMessageReceived: (String) -> Unit
 ) {
+
+    // CoroutineScope sur un thread IO pour ne pas bloquer l'UI
     private val scope = CoroutineScope(Dispatchers.IO)
+    // BufferedReader pour lire les messages entrants ligne par ligne
     private val input = BufferedReader(InputStreamReader(socket.inputStream))
+    // PrintWriter pour envoyer des messages texte facilement
     private val output = PrintWriter(OutputStreamWriter(socket.outputStream), true)
 
     init {

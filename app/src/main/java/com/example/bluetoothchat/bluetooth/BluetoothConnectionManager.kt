@@ -19,20 +19,27 @@ import java.util.UUID
 
 class BluetoothConnectionManager(private val activity: ComponentActivity) {
 
+    // Récupère le contexte à partir de l'activité fournie en paramètre du constructeur.
+    // Le contexte est utilisé pour accéder aux services système (comme le Bluetooth).
     private val context: Context = activity
+    // Récupère le BluetoothManager, qui est le point d’entrée pour interagir avec le Bluetooth du système.
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+    // Récupère l’adaptateur Bluetooth (le matériel Bluetooth du téléphone).
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
 
-    // Demandeur de permissions (NOUVEAU)
+    // Demande les permissions nécessaire au bon fonctionnement de l'application
     private val permissionLauncher = activity.registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         onPermissionResult?.invoke(permissions.all { it.value })
     }
 
-    // Liste des appareils détectés (simplement leurs noms ou objets)
+    // Représente une session de communication Bluetooth (ex: pour envoyer/recevoir des messages).
+    // Elle sera initialisée après une connexion réussie.
     var chatSession: BluetoothChatSession? = null
 
+    // UUID (identifiant unique) utilisé pour identifier ce service Bluetooth entre appareils.
+    // Les deux appareils doivent utiliser le même UUID pour que la connexion fonctionne.
     private val appUuid: UUID = UUID.fromString("8ce255c0-200a-11e0-ac64-0800200c9a66")
 
     // Modifier la signature de startServer pour passer le socket à onConnected
@@ -41,6 +48,8 @@ class BluetoothConnectionManager(private val activity: ComponentActivity) {
         onConnected: () -> Unit,
         onMessageReceived: (String) -> Unit
     ) {
+        // Crée un serveur Bluetooth qui écoute les connexions entrantes avec le nom "BluetoothChat"
+        // et l'UUID de l'application
         val serverSocket = bluetoothAdapter
             ?.listenUsingRfcommWithServiceRecord("BluetoothChat", appUuid)
 
@@ -50,15 +59,16 @@ class BluetoothConnectionManager(private val activity: ComponentActivity) {
             return
         }
 
+        // Informe l'interface que le serveur est prêt et à l'écoute d'une connexion
         onWaiting()
 
         Thread {
             try {
                 val socket = serverSocket.accept() // Bloquant, attend une connexion
                 socket?.let {
-                    serverSocket.close()
+                    serverSocket.close() // Ferme le serveur, on ne veut accepter qu'une seule connexion ici
 
-                    chatSession = BluetoothChatSession(it, onMessageReceived)
+                    chatSession = BluetoothChatSession(it, onMessageReceived) // Crée une session de chat Bluetooth avec le socket connecté
 
                     // Appelle le callback dans le thread UI
                     activity.runOnUiThread {
@@ -67,7 +77,6 @@ class BluetoothConnectionManager(private val activity: ComponentActivity) {
                 }
             } catch (e: IOException) {
                 e.printStackTrace()
-                // Ici tu peux aussi appeler un callback d'erreur sur UI si tu veux
             }
         }.start()
     }
@@ -79,7 +88,7 @@ class BluetoothConnectionManager(private val activity: ComponentActivity) {
     ) {
         Thread {
             try {
-                val socket = device.createRfcommSocketToServiceRecord(appUuid)
+                val socket = device.createRfcommSocketToServiceRecord(appUuid) // Crée un socket Bluetooth RFCOMM vers l'appareil avec l'UUID de l'application
                 bluetoothAdapter?.cancelDiscovery() // Toujours annuler le scan avant de se connecter
                 socket.connect()
 
@@ -92,9 +101,6 @@ class BluetoothConnectionManager(private val activity: ComponentActivity) {
             }
         }.start()
     }
-
-
-
 
     val devicesFound = mutableListOf<BluetoothDevice>()
 
@@ -131,8 +137,6 @@ class BluetoothConnectionManager(private val activity: ComponentActivity) {
             Log.w("BluetoothScan", "Receiver déjà désenregistré")
         }
     }
-//-------------------------------------------------------------------------------------
-
 
     var onPermissionResult: ((Boolean) -> Unit)? = null
 
